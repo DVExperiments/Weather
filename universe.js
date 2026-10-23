@@ -13,7 +13,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '0.1.0';
+  const VERSION = '0.2.0';
   const MIN = 60000, H = 3600000, DAY = 86400000;
   const EPOCH = Date.UTC(2025, 11, 3); // Glacial's first Daily Crawl
   const PI = 3.141592653589793, TAU = 6.283185307179586;
@@ -36,7 +36,8 @@
     }
     return h >>> 0;
   }
-  const unit = (s) => hash('weather:' + s) / 4294967296;
+  // one well-mixed number per key: hashes of similar keys (temp:1234, temp:1235) are similar, so they go through the generator first
+  const unit = (s) => rng(hash('weather:' + s))();
   const seeded = (s) => rng(hash('weather:' + s));
 
   // ---------------------------------------------------------------- small maths
@@ -191,7 +192,7 @@
     temp += -cloud * 1.6 * d + cloud * 1.4 * (1 - d);
     const breeze = isDay ? 6 * d * (S + 1) / 2 : 0;
     const wind = clamp(acc.wind * (1 + 0.25 * noise('wind', t, 3)) + breeze, 0, 160);
-    const gust = wind * (1.25 + 0.25 * unit('gust:' + Math.floor(t / H)));
+    const gust = wind * (1.22 + 0.2 * unit('gust:' + Math.floor(t / H)));
     let rain = 0;
     if (cloud > 0.45 && acc.rain > 0.02) {
       const n = (noise('rain', t, 1.5) + 1) / 2;
