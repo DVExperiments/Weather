@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weather Bureau: test bench</title>
+<link rel="stylesheet" href="bureau.css">
+</head>
+<body>
+<main>
+  <section class="page-head"><h1>Weather Bureau test bench</h1><p class="lede">Checks that the climate is deterministic, follows the maths rules, and behaves like a real temperate city.</p></section>
+  <h2>Self-checks</h2>
+  <ul class="timeline" id="checks"><li class="muted">Running…</li></ul>
+  <h2>Climate by month</h2>
+  <div class="controls"><label class="filter">Years <select id="years"><option>3</option><option selected>10</option><option>25</option></select></label> <button class="btn" id="run" style="font:600 1rem var(--body);background:var(--ink);color:var(--bg);border:0;padding:10px 16px;border-radius:3px;cursor:pointer">Run</button> <span class="muted" id="status"></span></div>
+  <div class="table-wrap"><table class="data" id="months"></table></div>
+  <h2>Weather and storms per year</h2>
+  <div class="table-wrap"><table class="data" id="yearly"></table></div>
+</main>
+<script src="universe.js"></script>
+<script>
+(function () {
+  const C = PixelUniverse.climate, D = 86400000, E = C.epoch;
+  const $ = (id) => document.getElementById(id);
+  function checks() {
+    const out = [];
+    const add = (ok, text) => out.push('<li><span class="' + (ok ? 'hit' : 'miss') + '">' + (ok ? 'Pass' : 'Fail') + '</span><span>' + text + '</span></li>');
+    const a = C.create(), b = C.create();
+    add(JSON.stringify(a.eventsBetween(E, E + 400 * D)) === JSON.stringify(b.eventsBetween(E, E + 400 * D)), 'Two independent replays of 400 days produce identical events');
+    let same = true;
+    for (let i = 0; i < 20; i++) { const t = E + Math.floor(Math.random() * 900 * D); if (JSON.stringify(a.sample(t)) !== JSON.stringify(b.sample(t))) same = false; }
+    add(same, 'The weather at 20 random moments is identical in both');
+    const t = E + Math.floor(Math.random() * 600 * D);
+    add(!a.eventsBetween(E, t).some((e) => e.ms > t), 'No event from the future is visible at a given moment');
+    let maxErr = 0;
+    for (let x = 0; x < 6.3; x += 0.01) maxErr = Math.max(maxErr, Math.abs(C._internals.cos(x) - Math.cos(x)));
+    add(maxErr < 0.002, 'The arithmetic-only cosine stays within 0.002 of the real one (worst ' + maxErr.toFixed(4) + ')');
+    fetch('universe.js').then((r) => r.text()).then((src) => {
+      const used = [...new Set(src.match(/Math\.\w+/g))].filter((m) => m !== 'Math.floor' && m !== 'Math.imul');
+      $('checks').insertAdjacentHTML('beforeend', '<li><span class="' + (used.length ? 'miss' : 'hit') + '">' + (used.length ? 'Fail' : 'Pass') + '</span><span>The simulation uses only Math.floor and Math.imul' + (used.length ? ' (found ' + used.join(', ') + ')' : '') + '</span></li>');
+    }).catch(() => {});
+    $('checks').innerHTML = out.join('');
+  }
+  const TARGET = { max: [[22, 26], [22, 26], [20, 24], [18, 22], [15.5, 19], [13.5, 17], [12.5, 16], [13, 16.5], [14, 17.5], [16, 20], [18.5, 22.5], [21, 25]] };
+  function run(years) {
+    const t0 = performance.now(), end = E + years * 365 * D;
+    const days = C.historyBetween(E, end);
+    const m = {};
+    for (const d of days) { const k = new Date(d.day).getUTCMonth(); const o = (m[k] = m[k] || { n: 0, max: 0, min: 0, rain: 0, wet: 0, sun: 0 }); o.n++; o.max += d.max; o.min += d.min; o.rain += d.rain; o.wet += d.rain >= 1 ? 1 : 0; o.sun += d.sunshine; }
+    const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    let rows = '<thead><tr><th>Month</th><th class="n">Average high</th><th class="n">Average low</th><th class="n">Rain</th><th class="n">Wet days</th><th class="n">Sunshine a day</th><th>High in range</th></tr></thead><tbody>';
+    for (let k = 0; k < 12; k++) {
+      const o = m[k]; if (!o) continue;
+      const months = o.n / 30.4, hi = o.max / o.n, ok = hi >= TARGET.max[k][0] && hi <= TARGET.max[k][1];
+      rows += '<tr><td>' + names[k] + '</td><td class="n">' + hi.toFixed(1) + '\u00b0</td><td class="n">' + (o.min / o.n).toFixed(1) + '\u00b0</td><td class="n">' + (o.rain / months).toFixed(0) + ' mm</td><td class="n">' + (o.wet / months).toFixed(1) +
+        '</td><td class="n">' + (o.sun / o.n).toFixed(1) + ' h</td><td class="' + (ok ? 'hit' : 'miss') + '">' + (ok ? 'Yes' : 'No') + '</td></tr>';
+    }
+    $('months').innerHTML = rows + '</tbody>';
+    const ev = C.create().eventsBetween(E, end), c = (f) => (ev.filter(f).length / years).toFixed(1);
+    const gusts = days.map((d) => d.gust);
+    const fs = C.forecasterStats(end);
+    const items = [['Rain a year', (days.reduce((a, d) => a + d.rain, 0) / years).toFixed(0) + ' mm', '1,000 to 1,600 mm'], ['Named storms', c((e) => e.type === 'storm.arrives'), '3 to 6'],
+      ['Days with gusts of 100 km/h or more', (gusts.filter((g) => g >= 100).length / years).toFixed(1), '2 to 10'], ['Heatwaves', c((e) => e.type === 'heatwave.start'), '0 to 2'],
+      ['Cold snaps', c((e) => e.type === 'coldsnap.start'), '0 to 2'], ['Dry spells of 14 days or more', c((e) => e.type === 'dryspell' && e.data.days === 14), '1 to 5'],
+      ['Snow days', (days.filter((d) => d.snow).length / years).toFixed(2), 'rare'], ['New records', c((e) => e.type === 'weather.record'), 'falling over time'],
+      ['Forecaster accuracy', Math.round(fs.accuracy * 100) + '%', '60% to 80%']];
+    $('yearly').innerHTML = '<thead><tr><th>Measure</th><th class="n">Per year</th><th>Target</th></tr></thead><tbody>' + items.map((i) => '<tr><td>' + i[0] + '</td><td class="n">' + i[1] + '</td><td class="muted">' + i[2] + '</td></tr>').join('') + '</tbody>';
+    $('status').textContent = years + ' years in ' + Math.round(performance.now() - t0) + ' ms';
+  }
+  $('run').addEventListener('click', () => { $('status').textContent = 'Running\u2026'; setTimeout(() => run(+$('years').value), 30); });
+  setTimeout(() => { checks(); run(10); }, 30);
+})();
+</script>
+</body>
+</html>
