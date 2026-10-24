@@ -13,9 +13,15 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '0.2.0';
+  const VERSION = '0.3.0';
   const MIN = 60000, H = 3600000, DAY = 86400000;
   const EPOCH = Date.UTC(2025, 11, 3); // Glacial's first Daily Crawl
+  // The Renewal: from this moment the city keeps City Standard Time, UTC+12 all year, so the sun is highest at noon
+  // in New Zealand. Before it, the city's clock was UTC. Races, laws and the paper stay on 00:00 UTC.
+  // This is the universe's one source of truth for the city's clock: City and every page read offsetAt from here.
+  const RENEWAL = Date.UTC(2026, 10, 1);
+  const CITY_OFFSET = 12 * 3600000;
+  const offsetAt = (t) => (t >= RENEWAL ? CITY_OFFSET : 0);
   const PI = 3.141592653589793, TAU = 6.283185307179586;
 
   // ---------------------------------------------------------------- shared RNG (identical to Glacial's)
@@ -168,7 +174,7 @@
   // ---------------------------------------------------------------- the weather at a moment
   const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
   function sample(t) {
-    const S = season(t), h = (t % DAY) / H;
+    const S = season(t), h = (((t + offsetAt(t)) % DAY) + DAY) % DAY / H; // the hour on the city's clock
     const dl = dayLength(t), rise = 12 - dl / 2, set = 12 + dl / 2;
     const isDay = h >= rise && h < set;
     const d = 0.5 + 0.5 * cos((TAU * (h - 15)) / 24); // 1 at 3pm, 0 at 3am
@@ -476,13 +482,15 @@
       return {
         time: t, started: true, version: VERSION, season: seasonName(t), normals: normals(t), now,
         pressureTrend: rd1(now.pressure - before.pressure), today: summarise(d, t),
-        sunrise: d + (12 - dl / 2) * H, sunset: d + (12 + dl / 2) * H, dayLength: rd1(dl),
+        // sunrise and sunset on the city's own date, as moments in time
+        sunrise: dayOf(t + offsetAt(t)) - offsetAt(t) + (12 - dl / 2) * H, sunset: dayOf(t + offsetAt(t)) - offsetAt(t) + (12 + dl / 2) * H, dayLength: rd1(dl),
         outlook, forecast: forecastAt(t), forecaster: FORECASTER
       };
     }
     return {
       version: VERSION, source: 'weather', startDate: ymd(EPOCH), epoch: EPOCH, forecaster: FORECASTER,
       stateAt, eventsBetween, historyBetween, sample, forecastAt, verify, forecasterStats, normals,
+      renewal: RENEWAL, offsetAt, cityOffset: CITY_OFFSET,
       dayAt: (d) => day(dayOf(d)),
       systemsBetween(from, to) {
         ensureSystems(to);

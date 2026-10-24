@@ -19,7 +19,9 @@
   const fTime = utc({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }), fSec = utc({ hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
   const fDate = utc({ weekday: 'long', day: 'numeric', month: 'long' }), fShort = utc({ weekday: 'short', day: 'numeric', month: 'short' });
   const fDay = utc({ weekday: 'short' }), fYear = utc({ day: 'numeric', month: 'short', year: 'numeric' }), fMonth = utc({ month: 'long', year: 'numeric' });
-  const ct = (ms) => fTime.format(ms), date = (ms) => fDate.format(ms), short = (ms) => fShort.format(ms), dateY = (ms) => fYear.format(ms);
+  // times are shown on the city's clock: UTC until the Renewal, City Standard Time (UTC+12) after it
+  const cityMs = (ms) => ms + (window.PixelUniverse.climate.offsetAt ? window.PixelUniverse.climate.offsetAt(ms) : 0);
+  const ct = (ms) => fTime.format(cityMs(ms)), date = (ms) => fDate.format(ms), short = (ms) => fShort.format(ms), dateY = (ms) => fYear.format(ms);
   const link = (route, text) => '<a href="' + AT + '#/' + route + '">' + text + '</a>';
   const deg = (v) => (v > 0 ? '' : '') + v.toFixed(1) + '\u00b0';
   const WORD = { N: 'northerly', NE: 'northeasterly', E: 'easterly', SE: 'southeasterly', S: 'southerly', SW: 'southwesterly', W: 'westerly', NW: 'northwesterly' };
@@ -92,7 +94,7 @@
         const t = now();
         st = C.stateAt(t);
         const x = st.now;
-        set('clock', 'City time ' + fSec.format(t));
+        set('clock', 'City time ' + fSec.format(cityMs(t)));
         set('kicker', 'Pixel City, ' + esc(date(t)) + '. ' + esc(st.season) + '.');
         set('status', statusLine(x));
         set('barleft', icon(x.icon, !x.isDay) + ' ' + esc(x.cond) + ', ' + x.temp.toFixed(1) + '\u00b0C');
