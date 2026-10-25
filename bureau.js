@@ -94,7 +94,7 @@
         const t = now();
         st = C.stateAt(t);
         const x = st.now;
-        set('clock', 'City time ' + fSec.format(cityMs(t)));
+        set('clock', fSec.format(cityMs(t)) + ' PCT'); // Pixel City Time
         set('kicker', 'Pixel City, ' + esc(date(t)) + '. ' + (st.pixel && t >= C.pixel.adopted ? 'Year ' + st.pixel.year + ', day ' + (st.pixel.dayOfYear + 1) + '. ' : '') + esc(st.season) + '.');
         set('status', statusLine(x));
         set('barleft', icon(x.icon, !x.isDay) + ' ' + esc(x.cond) + ', ' + x.temp.toFixed(1) + '\u00b0C');
