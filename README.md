@@ -23,7 +23,11 @@ Every file sits at the top level; there are no folders.
 
 **City time is UTC.** As on Glacial, the middle of the night is 00:00 UTC, so the sun is highest at 12:00. The site shows all times in city time.
 
-**Seasons** follow the Southern Hemisphere: warmest in late January (highs about 24°C), coldest in late July (highs about 14°C). Day length runs from about 14.7 hours in December to 9.3 in June. Rain is about 1,500 mm a year, wetter in winter.
+**Seasons** follow the Southern Hemisphere: warmest in late summer (highs about 24°C), coldest in late winter (highs about 14°C), with day length from about 14.7 hours to 9.3. Rain is about 1,500 mm a year, wetter in winter.
+
+**The Climate Reform.** From 00:00 UTC on 1 December 2026, when the universe adopts the Pixel Calendar, a full year of seasons passes every calendar month: summer peaks just after the Grand Prix on the 1st, winter around the 17th, and each season lasts about a real week. Before the Reform, summer peaked in late January and winter in late July; that history is unchanged. Weather systems, the day and night, the forecaster and the records all keep real time. Seasons begin on the first day of the twelfth, third, sixth and ninth pixel months, and the first frost is counted per Pixel Year. A `climate.reform` event marks the day.
+
+**The Pixel Calendar.** The Bureau keeps the universe's calendars: the city's clock (`offsetAt`) and the Pixel Calendar (`climate.pixel`), which every site that counts ages or pixel dates reads from here. One Pixel Year passes every calendar month from 00:00 UTC on the 1st; December 2025 is Year 1, so 1 December 2026 opens Year 13; a Pixel Year has 360 pixel days in twelve months of 30. The life clock (`toLife`, `fromLife`) runs one 365.25-day year per calendar month from the adoption, and before it is the ordinary clock, so the census can measure lives on it without changing any history.
 
 **Maths rule.** Seasons and daily cycles need a cosine, which the conventions don't allow in simulation code, so the climate uses Bhaskara's approximation (arithmetic only, accurate to 0.002). The test bench checks that the file uses only `Math.floor` and `Math.imul`.
 
@@ -61,10 +65,14 @@ Summer favours highs and northwesterlies; winter favours lows, fronts and southe
 | `forecastAt(time)`, `verify(day)`, `forecasterStats(time)` | The forecaster's work and record |
 | `systemsBetween(from, to)` | Weather systems arriving in a range |
 | `normals(time)` | Normal high, low and day length for the time of year |
+| `pixel.time(t)` | The pixel date: `{ year, month, day, dayOfYear, yearStart, yearEnd }` |
+| `pixel.date(t)`, `pixel.moment(year, dayOfYear)` | `'13-04-12'`, and the real moment a pixel day begins |
+| `pixel.toLife(t)`, `pixel.fromLife(l)`, `pixel.add(t, span)`, `pixel.years(a, b)` | The life clock, on which ages are measured |
+| `pixel.adopted`, `pixel.YEAR` | 1 December 2026, and the life clock's year (365.25 days) |
 
 ## Testing
 
-Add `?at=` to watch any moment, for example `index.html?at=2026-07-14T13:00` for Storm Cache, or `?at=2026-01-20T23:30` for a stormy summer night.
+Add `?at=` to watch any moment, for example `index.html?at=2026-07-14T13:00` for Storm Cache, or `?at=2026-01-20T23:30` for a stormy summer night. The test bench measures the climate by pixel month from the Reform onwards.
 
 ## Before connecting other sites
 

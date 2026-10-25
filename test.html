@@ -11,7 +11,8 @@
   <section class="page-head"><h1>Weather Bureau test bench</h1><p class="lede">Checks that the climate is deterministic, follows the maths rules, and behaves like a real temperate city.</p></section>
   <h2>Self-checks</h2>
   <ul class="timeline" id="checks"><li class="muted">Running…</li></ul>
-  <h2>Climate by month</h2>
+  <h2>Climate by pixel month</h2>
+  <p class="muted">From the Pixel Calendar's adoption on 1 December 2026, a year of seasons passes every calendar month, so the climate is measured by pixel month (each about two and a half real days).</p>
   <div class="controls"><label class="filter">Years <select id="years"><option>3</option><option selected>10</option><option>25</option></select></label> <button class="btn" id="run" style="font:600 1rem var(--body);background:var(--ink);color:var(--bg);border:0;padding:10px 16px;border-radius:3px;cursor:pointer">Run</button> <span class="muted" id="status"></span></div>
   <div class="table-wrap"><table class="data" id="months"></table></div>
   <h2>Weather and storms per year</h2>
@@ -43,20 +44,20 @@
   }
   const TARGET = { max: [[22, 26], [22, 26], [20, 24], [18, 22], [15.5, 19], [13.5, 17], [12.5, 16], [13, 16.5], [14, 17.5], [16, 20], [18.5, 22.5], [21, 25]] };
   function run(years) {
-    const t0 = performance.now(), end = E + years * 365 * D;
-    const days = C.historyBetween(E, end);
+    const t0 = performance.now(), A = C.pixel.adopted, end = A + years * 365 * D;
+    const days = C.historyBetween(A, end);
     const m = {};
-    for (const d of days) { const k = new Date(d.day).getUTCMonth(); const o = (m[k] = m[k] || { n: 0, max: 0, min: 0, rain: 0, wet: 0, sun: 0 }); o.n++; o.max += d.max; o.min += d.min; o.rain += d.rain; o.wet += d.rain >= 1 ? 1 : 0; o.sun += d.sunshine; }
+    for (const d of days) { const k = C.pixel.time(d.day + D / 2).month - 1; const o = (m[k] = m[k] || { n: 0, max: 0, min: 0, rain: 0, wet: 0, sun: 0 }); o.n++; o.max += d.max; o.min += d.min; o.rain += d.rain; o.wet += d.rain >= 1 ? 1 : 0; o.sun += d.sunshine; }
     const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    let rows = '<thead><tr><th>Month</th><th class="n">Average high</th><th class="n">Average low</th><th class="n">Rain</th><th class="n">Wet days</th><th class="n">Sunshine a day</th><th>High in range</th></tr></thead><tbody>';
+    let rows = '<thead><tr><th>Pixel month</th><th class="n">Average high</th><th class="n">Average low</th><th class="n">Rain a day</th><th class="n">Wet days</th><th class="n">Sunshine a day</th><th>High in range</th></tr></thead><tbody>';
     for (let k = 0; k < 12; k++) {
       const o = m[k]; if (!o) continue;
-      const months = o.n / 30.4, hi = o.max / o.n, ok = hi >= TARGET.max[k][0] && hi <= TARGET.max[k][1];
-      rows += '<tr><td>' + names[k] + '</td><td class="n">' + hi.toFixed(1) + '\u00b0</td><td class="n">' + (o.min / o.n).toFixed(1) + '\u00b0</td><td class="n">' + (o.rain / months).toFixed(0) + ' mm</td><td class="n">' + (o.wet / months).toFixed(1) +
+      const hi = o.max / o.n, ok = hi >= TARGET.max[k][0] && hi <= TARGET.max[k][1];
+      rows += '<tr><td>' + names[k] + '</td><td class="n">' + hi.toFixed(1) + '\u00b0</td><td class="n">' + (o.min / o.n).toFixed(1) + '\u00b0</td><td class="n">' + (o.rain / o.n).toFixed(1) + ' mm</td><td class="n">' + Math.round(o.wet / o.n * 100) + '%' +
         '</td><td class="n">' + (o.sun / o.n).toFixed(1) + ' h</td><td class="' + (ok ? 'hit' : 'miss') + '">' + (ok ? 'Yes' : 'No') + '</td></tr>';
     }
     $('months').innerHTML = rows + '</tbody>';
-    const ev = C.create().eventsBetween(E, end), c = (f) => (ev.filter(f).length / years).toFixed(1);
+    const ev = C.create().eventsBetween(A, end), c = (f) => (ev.filter(f).length / years).toFixed(1);
     const gusts = days.map((d) => d.gust);
     const fs = C.forecasterStats(end);
     const items = [['Rain a year', (days.reduce((a, d) => a + d.rain, 0) / years).toFixed(0) + ' mm', '1,000 to 1,600 mm'], ['Named storms', c((e) => e.type === 'storm.arrives'), '3 to 6'],

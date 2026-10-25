@@ -8,12 +8,15 @@
  *   - simulation maths uses only + - * / Math.floor Math.imul. Seasons and days need a cosine,
  *     so this file uses Bhaskara's approximation, which needs only arithmetic.
  *
+ * The Bureau also keeps the universe's calendars: the city's clock (offsetAt) and, from 1 December 2026, the Pixel
+ * Calendar (one Pixel Year per calendar month) with its life clock, which every site that counts ages reads from here.
+ *
  * Registers window.PixelUniverse.climate.
  */
 (function (root) {
   'use strict';
 
-  const VERSION = '0.3.0';
+  const VERSION = '0.4.0';
   const MIN = 60000, H = 3600000, DAY = 86400000;
   const EPOCH = Date.UTC(2025, 11, 3); // Glacial's first Daily Crawl
   // The Renewal: from this moment the city keeps City Standard Time, UTC+12 all year, so the sun is highest at noon
@@ -23,6 +26,51 @@
   const CITY_OFFSET = 12 * 3600000;
   const offsetAt = (t) => (t >= RENEWAL ? CITY_OFFSET : 0);
   const PI = 3.141592653589793, TAU = 6.283185307179586;
+
+  // ---------------------------------------------------------------- the Pixel Calendar
+  // One Pixel Year passes every calendar month, from 00:00 UTC on the 1st (Grand Prix day), so every Grand Prix is New
+  // Year's Day. Years count from the epoch: December 2025 is Year 1, so 1 December 2026 opens Year 13. A Pixel Year has
+  // 360 pixel days, twelve pixel months of 30. The calendar is defined back to the epoch; it was adopted, and began to
+  // matter, at 00:00 UTC on 1 December 2026: from then the seasons turn once a Pixel Year (the Climate Reform), and lives
+  // run on the life clock below. Integer arithmetic only: (t - start) * 360 stays far below 2^53.
+  const CALENDAR = Date.UTC(2026, 11, 1);
+  const LIFE_YEAR = 31557600000; // 365.25 days: the year every life in the census has always counted in
+  const MONTH0 = 2025 * 12 + 11; // December 2025, Pixel Year 1
+  function pixelTime(t) {
+    const d = new Date(t), y = d.getUTCFullYear(), m = d.getUTCMonth();
+    const a = Date.UTC(y, m, 1), b = Date.UTC(y, m + 1, 1);
+    const dayOfYear = Math.floor(((t - a) * 360) / (b - a));
+    return { year: y * 12 + m - MONTH0 + 1, month: Math.floor(dayOfYear / 30) + 1, day: (dayOfYear % 30) + 1, dayOfYear, yearStart: a, yearEnd: b };
+  }
+  /** The first real moment of pixel day `dayOfYear` (0 to 359) of Pixel Year `year`. */
+  function pixelMoment(year, dayOfYear) {
+    const n = MONTH0 + year - 1, y = Math.floor(n / 12), m = n - y * 12;
+    const a = Date.UTC(y, m, 1), b = Date.UTC(y, m + 1, 1);
+    return a - Math.floor((-dayOfYear * (b - a)) / 360); // a + ceil(dayOfYear * length / 360)
+  }
+  const pixelDate = (t) => { const p = pixelTime(t); return p.year + '-' + pad(p.month) + '-' + pad(p.day); };
+  // The life clock: a moment on a clock that, from the Calendar's adoption, runs one LIFE_YEAR per calendar month, and
+  // before it is the ordinary clock. Ages, lifespans, careers, tenancies, schooling and loan terms are measured on it,
+  // so a pixel ages one year every Pixel Year while everything before the adoption stays exactly as it was.
+  function toLife(t) {
+    if (t < CALENDAR) return t;
+    const d = new Date(t), y = d.getUTCFullYear(), m = d.getUTCMonth();
+    const a = Date.UTC(y, m, 1), b = Date.UTC(y, m + 1, 1);
+    return CALENDAR + (y * 12 + m - MONTH0 - 12) * LIFE_YEAR + Math.floor(((t - a) * LIFE_YEAR) / (b - a));
+  }
+  function fromLife(l) {
+    if (l < CALENDAR) return l;
+    const k = Math.floor((l - CALENDAR) / LIFE_YEAR), n = MONTH0 + 12 + k, y = Math.floor(n / 12), m = n - y * 12;
+    const a = Date.UTC(y, m, 1), b = Date.UTC(y, m + 1, 1);
+    return a + Math.floor(((l - CALENDAR - k * LIFE_YEAR) * (b - a)) / LIFE_YEAR);
+  }
+  const PIXEL = {
+    adopted: CALENDAR, YEAR: LIFE_YEAR, time: pixelTime, moment: pixelMoment, date: pixelDate, toLife, fromLife,
+    /** The real moment `span` of life-clock time after t (span may be negative). */
+    add: (t, span) => fromLife(toLife(t) + span),
+    /** Whole years on the life clock from a to b: an age. */
+    years: (a, b) => Math.floor((toLife(b) - toLife(a)) / LIFE_YEAR)
+  };
 
   // ---------------------------------------------------------------- shared RNG (identical to Glacial's)
   function rng(a) {
@@ -79,16 +127,18 @@
 
   // ---------------------------------------------------------------- seasons and daylight
   function yearFrac(t) {
+    // the Climate Reform: from the Pixel Calendar's adoption, a year of seasons passes every Pixel Year
+    if (t >= CALENDAR) { const d = new Date(t), a = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1), b = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1); return (t - a) / (b - a); }
     const y = new Date(t).getUTCFullYear(), a = Date.UTC(y, 0, 1), b = Date.UTC(y + 1, 0, 1);
     return (t - a) / (b - a);
   }
-  /** +1 at the warmest time of year (late January), -1 at the coldest (late July). */
+  /** +1 at the warmest time of year (late January, or the late first pixel month), -1 at the coldest (late July). */
   const season = (t) => cos(TAU * (yearFrac(t) - 25 / 365));
   /** +1 at the December solstice. */
   const solar = (t) => cos(TAU * (yearFrac(t) - 355 / 365));
   const dayLength = (t) => 12 + 2.7 * solar(t); // hours: about 14.7 in December, 9.3 in June
   function seasonName(t) {
-    const m = new Date(t).getUTCMonth();
+    const m = t >= CALENDAR ? pixelTime(t).month - 1 : new Date(t).getUTCMonth();
     return m === 11 || m < 2 ? 'Summer' : m < 5 ? 'Autumn' : m < 8 ? 'Winter' : 'Spring';
   }
   function normals(t) {
@@ -365,7 +415,16 @@
   /** Everything that happened on day d. Daily statistics are published at 23:59. */
   function processDay(h, d, out) {
     const date = new Date(d), month = date.getUTCMonth(), dom = date.getUTCDate(), te = d + DAY - MIN;
-    if (dom === 1 && SEASON_START[month]) emit(out, d, 'season.start', 2, 'season:' + ymd(d), { season: SEASON_START[month] }, SEASON_START[month] + ' begins in Pixel City');
+    if (d < CALENDAR) { if (dom === 1 && SEASON_START[month]) emit(out, d, 'season.start', 2, 'season:' + ymd(d), { season: SEASON_START[month] }, SEASON_START[month] + ' begins in Pixel City'); }
+    else {
+      if (d === CALENDAR) emit(out, d, 'climate.reform', 4, 'climate-reform', { pixelYear: pixelTime(d).year },
+        'The Pixel Calendar is adopted: from today a full year of seasons will pass every month, beginning with Year 13');
+      // seasons begin on the first day of the twelfth, third, sixth and ninth pixel months
+      for (let y = pixelTime(d).year - 1; y <= pixelTime(d + DAY - 1).year; y++) for (const pm of [11, 2, 5, 8]) {
+        const at = pixelMoment(y, pm * 30);
+        if (at >= d && at < d + DAY && at >= CALENDAR) emit(out, at, 'season.start', 2, 'season:' + y + '-' + pad(pm + 1), { season: SEASON_START[pm], pixelYear: y, pixel_date: y + '-' + pad(pm + 1) + '-01' }, SEASON_START[pm] + ' begins in Pixel City');
+      }
+    }
     ensureSystems(d + 3 * DAY);
     for (const s of systems) {
       if (s.arrive > d + 3 * DAY) break;
@@ -413,8 +472,13 @@
     }
     if (x.rain >= 55) emit(out, te, 'weather.deluge', 4, 'deluge:' + ymd(d), { rain: x.rain }, 'Deluge: ' + x.rain + ' mm of rain in a single day');
     if (x.snow) emit(out, te, 'weather.snow', 4, 'snow:' + ymd(d), {}, 'Snow falls on Pixel City');
-    const yr = date.getUTCFullYear();
-    if (x.frost && month >= 2 && month <= 10 && h.frostYear !== yr) { h.frostYear = yr; emit(out, d + 7 * H, 'weather.frost', 3, 'frost:' + yr, {}, 'The first frost of the year'); }
+    if (d < CALENDAR) {
+      const yr = date.getUTCFullYear();
+      if (x.frost && month >= 2 && month <= 10 && h.frostYear !== yr) { h.frostYear = yr; emit(out, d + 7 * H, 'weather.frost', 3, 'frost:' + yr, {}, 'The first frost of the year'); }
+    } else { // the first frost of a Pixel Year, between its third and eleventh months
+      const p = pixelTime(d + 7 * H), yr = 'Y' + p.year;
+      if (x.frost && p.month >= 3 && p.month <= 11 && h.frostYear !== yr) { h.frostYear = yr; emit(out, d + 7 * H, 'weather.frost', 3, 'frost:' + yr, { pixelYear: p.year }, 'The first frost of Year ' + p.year); }
+    }
     // the forecaster's day
     const v = verify(d);
     if (v) {
@@ -480,7 +544,7 @@
       const outlook = systems.filter((s) => s.end + FALL > t && s.arrive - s.ramp < t + 4 * DAY)
         .map((s) => ({ id: s.id, type: s.type, name: s.named || s.name, named: !!s.named, arrive: s.arrive, end: s.end, approach: s.arrive - s.ramp, intensity: s.intensity }));
       return {
-        time: t, started: true, version: VERSION, season: seasonName(t), normals: normals(t), now,
+        time: t, started: true, version: VERSION, season: seasonName(t), pixel: pixelTime(t), pixelDate: pixelDate(t), normals: normals(t), now,
         pressureTrend: rd1(now.pressure - before.pressure), today: summarise(d, t),
         // sunrise and sunset on the city's own date, as moments in time
         sunrise: dayOf(t + offsetAt(t)) - offsetAt(t) + (12 - dl / 2) * H, sunset: dayOf(t + offsetAt(t)) - offsetAt(t) + (12 + dl / 2) * H, dayLength: rd1(dl),
@@ -490,7 +554,7 @@
     return {
       version: VERSION, source: 'weather', startDate: ymd(EPOCH), epoch: EPOCH, forecaster: FORECASTER,
       stateAt, eventsBetween, historyBetween, sample, forecastAt, verify, forecasterStats, normals,
-      renewal: RENEWAL, offsetAt, cityOffset: CITY_OFFSET,
+      renewal: RENEWAL, offsetAt, cityOffset: CITY_OFFSET, pixel: PIXEL,
       dayAt: (d) => day(dayOf(d)),
       systemsBetween(from, to) {
         ensureSystems(to);

@@ -95,7 +95,7 @@
         st = C.stateAt(t);
         const x = st.now;
         set('clock', 'City time ' + fSec.format(cityMs(t)));
-        set('kicker', 'Pixel City, ' + esc(date(t)) + '. ' + esc(st.season) + '.');
+        set('kicker', 'Pixel City, ' + esc(date(t)) + '. ' + (st.pixel && t >= C.pixel.adopted ? 'Year ' + st.pixel.year + ', day ' + (st.pixel.dayOfYear + 1) + '. ' : '') + esc(st.season) + '.');
         set('status', statusLine(x));
         set('barleft', icon(x.icon, !x.isDay) + ' ' + esc(x.cond) + ', ' + x.temp.toFixed(1) + '\u00b0C');
         const trend = st.pressureTrend > 0.6 ? 'rising' : st.pressureTrend < -0.6 ? 'falling' : 'steady';
@@ -327,7 +327,7 @@
     render() {
       return head('About the Bureau', 'The Weather Bureau keeps Pixel City\u2019s weather records, publishes its forecasts and, eventually, will report its air quality.') +
         '<div class="prose"><p>The weather is part of the Pixel Universe, alongside Glacial, the world\u2019s slowest race, and the Pixel Senate. Like them, it is computed in your browser from the date, so every visitor sees the same sky at the same moment, and nothing is stored.</p>' +
-        '<p>Pixel City has a mild maritime climate with Southern Hemisphere seasons: summer peaks in late January and winter in late July. Its clock runs on UTC, so the sun is highest at 12:00 city time. All times on this site are city time.</p>' +
+        '<p>Pixel City has a mild maritime climate with Southern Hemisphere seasons. Since the Climate Reform of 1 December 2026, when the city adopted the Pixel Calendar, a full year of seasons passes every calendar month: summer peaks just after the Grand Prix on the 1st, winter around the 17th, and each season lasts about a week. Before the Reform, summer peaked in late January and winter in late July, and the records keep both. All times on this site are city time.</p>' +
         '<p>Weather arrives as systems: highs, cold fronts, lows, warm northwesterlies, southerly changes and muggy northeasterlies. Most take a day or two to arrive. The deepest lows are named.</p>' +
         '<p>Weather never affects a race. It sets the sky, and will one day decide how many residents turn up to watch.</p></div>';
     }
